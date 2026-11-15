@@ -1,0 +1,208 @@
+# Aesir Qwen35 Adapter Campaign — MAP
+
+Opened 2026-11-14 on Volmarr's word in chat: "yes make the adopter for
+that kind" — the adapter for the `qwen35` hybrid architecture, so the
+27B heretic can load, generate, and serve on Aesir.
+
+## Seat and rules
+
+- Worktree: `/home/volmarr/aesir-hipserve`, branch **`yrsa/hip-serve`
+  only — never push to main.** Bank every slice: commit, push with
+  explicit refspec `HEAD:refs/heads/yrsa/hip-serve`, verify with
+  `git ls-remote` that the remote branch moved.
+- This folder (`hidden_files/qwen35-adapter/`) is the campaign's home:
+  this MAP + `LEDGER.md` (running record, updated in the same session
+  as the work it describes).
+- Method: Mythic Engineering — coordinated crews, per-worker worktrees
+  for parallel writers, bank incrementally with remote verification,
+  capture durable lessons in the ledger.
+
+## Target
+
+- File: `/mnt/vault/models/gguf/Qwen3.8-27B-Ultimate-Heretic-Uncn-
+  Turbo-Brilli-50x-AGI-NEO-Q8_0.gguf`, 28,596,003,296 B.
+- SHA-256 **verified on-device 2026-11-14** (full):
+  `1fca6eefc37607b5ab458f9a76815b36aeb38cf21ac36c49fdc0ab4eb186f08e`
+  — matches the gate doc's `1fca6eef…186f08e`. This is the exact file
+  the 27B gate examined.
+- Architecture `qwen35`: 64 blocks, hidden 5120, FFN 17408, 24 heads /
+  4 KV heads, head dim 256, context 262,144. HYBRID: 48 recurrent
+  Gated-DeltaNet (SSM) layers + 16 full-attention layers (interval 4);
+  partial rotary (64 of 256). Real delta-net geometry: q/k = 16 groups
+  × 128 state = 2048 each, v = 48 time-step-rank heads × 128 = 6144 =
+  ssm.inner_size; qkv width = 10240 (full census in the plan).
+
+## Ground truth (read before believing any summary)
+
+- `hidden_files/hip-serve/QWEN35_PLAN.md` — the verified recon + slice
+  plan, banked at a8215e29. **This campaign executes that plan.**
+- `hidden_files/hip-serve/GATE_AND_27B_RESULTS.md` — the 27B gate
+  verdict (NOT RUNNABLE today) + full-suite gate: 901/905, the only
+  failures the two proven pre-existing ones
+  (`gguf.tensor_directory_interface`, `gpu.hip_q4k_gemv_no_leak`).
+- `hidden_files/hip-serve/inspect-27b.log` — `aesir inspect` refusal:
+  UNSUPPORTED, "No architecture adapter is registered."
+
+## Slices (from the adopted plan; each banked on this branch)
+
+- **Q35-1 — Loader truth.** Fix `_validate_qwen35_tensors`
+  (aesir_engine/loader/gguf.mojo) formulas to the real layout; settle
+  validator type enforcement by test. Proof: engine loader accepts the
+  real 27B (probe reaches tensor materialization); a new small
+  synthetic qwen35 fixture with correct SSM geometry loads; a mutated
+  fixture (wrong qkv width) is rejected.
+- **Q35-2 — Registry + profile + inspect.** qwen35 branch in
+  `ModelArchitectureRegistry.classify()`, `core/qwen35_profile.mojo`,
+  `inspect()` dispatch, `qwen35_memory_plan`; Q8_0 admitted. Proof:
+  `aesir inspect` on the real file returns READY/COMPATIBLE with
+  tensor_validation passed and a sane footprint.
+- **Q35-3 — CPU forward correctness.** Repair delta-net geometry in
+  `core/inference.mojo` + `aesir.mojo` (qkv split, conv width,
+  v-head recurrence with q/k broadcast, per-v-head ssm_a/dt/beta,
+  state sizing). Proof: (a) synthetic fixture load/forward/greedy +
+  per-token vs batched state equality; (b) real 27B on CPU graded
+  against a CPU comparator (llama.cpp, same file) by teacher-forcing
+  rank + logit gap on RAW prompts; near-tie band rank ≤2, sub-logit
+  gap = faithful.
+- **Q35-3r — Q8_0-resident load path.** Opt-in resident mode
+  enforcing at load that every large qwen35 weight is stored
+  Q8_0 (refused by name otherwise; no F16 materialization),
+  reported as weight_load_mode in serve health. Unlocks the
+  memory gate's terms for Q35-3b/Q35-4b: exact censuses price the
+  27B large weights at 28,574,187,520 B stored vs 53,786,705,920 B
+  materialized (40B: 41,510,420,480 vs 78,137,262,080). Fixture-
+  grade proof banked with Q35-3a numerics bit-equal (logits diff
+  vs the default path exactly 0.0).
+- **Q35-4 — Serve session (CPU first).** Qwen35 session over the
+  engine-core path; runtime_plan admission (api=cpu), native_serve
+  dispatch. Proof: serve fixture then real 27B on a side port;
+  two-turn chat end to end; honest capabilities (residency true,
+  prefix reuse per Q35-5, anchor/injection true).
+- **Q35-5 — Residency + prefix snapshots.** Snapshot/restore of
+  Qwen35State (recurrence + conv rings) at token boundaries; reuse =
+  KV prefix + SSM snapshot at the same boundary, or no reuse. Proof:
+  state-equality test; HS-3-style two-turn bench; diverged-history
+  case reuses only the shared head.
+- **Q35-6 — HIP execution.** (a) projections via the existing Q8_0
+  HIP GEMV (+ measured prefill strategy); (b) full-attention layers
+  on device with partial rotary; (c) delta-net recurrence + conv1d
+  device kernels, state resident on device, proven equal to the CPU
+  state trajectory. Honest hybrid fallback only if measured faster
+  than CPU serve and labelled as such. Proof: HIP serve of the real
+  27B, rank/gap agreement vs CPU path, two-turn bench, tok/s with
+  contention noted.
+- **Q35-7 — Gate swap + close.** At a quiet moment swap aesir-gate to
+  the 27B on :18434 (llama3-3b stays the documented fallback in
+  VOXTA_SWITCHOVER.md); verify health + completion + two-turn chat;
+  full matrix fenced; QWEN35_RESULTS.md filed.
+
+## Hard unknowns (from the plan; what settles each is in the plan)
+
+U1 recurrence semantics beyond layout (settled by Q35-3 oracle
+grading) · U2 validator type enforcement (Q35-1 probe) · U3 CPU-serve
+memory vs fences (named exception or proof-only) · U4 Q8_0 prefill
+throughput on HIP (Q35-6 measures) · U5 Seer pool sizing for a
+64-layer F16 model (Q35-3 load probe).
+
+## Safety fences (this box OOM-crashed repeatedly on 2026-11-14)
+
+- Check MemAvailable before EVERY heavy run. At campaign start:
+  ~27 GB available; aesir-gate (llama3-3b on HIP, :18434), Ollama and
+  Voxta are LIVE for Volmarr's own testing.
+- Heavy runs fenced via systemd-run (MemoryHigh=24G/MemoryMax=32G),
+  ONE heavy run at a time, subsets over full suites while memory is
+  tight. The Q35-3 CPU real-file proof (F16 materialization ~57 GB)
+  needs its own explicitly-sized unit, recorded in the ledger when
+  used — never a silently dropped fence.
+- NEVER kill, stop, or restart aesir-gate, Ollama, or Voxta. If a
+  proof needs the 27B resident and it cannot fit beside what is live,
+  STOP that step and report the blocker — never evict.
+- The HIP device context claims the whole graphics pool while a
+  session lives; every load plan accounts for that.
+- Forge pause-lines stand: no main pushes, no public publishing, no
+  data destruction, no cost, no sending as Volmarr, no weakening
+  security. Any bug found is fixed in scope or recorded in the ledger
+  as named next work — never silently left.
+
+## Milestones (report as they land)
+
+1. QA-0 plan banked (this MAP + ledger) · 2. first proven load of the
+27B file · 3. first coherent CPU generation · 4. recurrent session
+proven across two turns · 5. HIP execution live · 6. serve bench
+numbers · 7. any genuine blocker, the moment it is proven.
+
+## Status override — 2026-11-14 (coordinator; supersedes the service lines in the safety section above)
+
+- Services: aesir-gate, Ollama, Voxta all STOPPED by Volmarr's
+  orders (Voxta/Ollama ~13:15 EST; the gate ~13:22 EST under his
+  blanket go-ahead). MemAvailable ~124.4 GB, load ~0. The campaign
+  may stop/start aesir-gate as proofs require and relaunch Ollama
+  for comparator runs; Voxta stays OFF unless a proof targets
+  Voxta interop (report any relaunch). A service found up that
+  the campaign did not start is assumed to be Volmarr's hand —
+  work around it.
+- Gate: the measured-fit rule PASSES for the 27B and 40B real-file
+  proofs. Q35-3b and Q35-4b are UNBLOCKED and run first; fences,
+  one-heavy-run-at-a-time, and re-measure rules are unchanged.
+  Q35-3r stays required before Q35-7's final serve configuration.
+- Q35-6a partial results sit uncommitted in
+  /home/volmarr/aesir-q35-6 (device admitted beside the then-live
+  gate; device greedy == banked CPU greedy; state-diff A/B owed).
+  It resumes after Q35-3b/Q35-4b.
+- NEW: compression workstream QC — QC-0 recon + plan first.
+
+## Compression workstream QC — opened 2026-11-14 (Volmarr's commission)
+
+Teach Aesir to WRITE compression: quantize a source model, emit a
+valid GGUF that Aesir and llama.cpp can load and run. Full plan:
+QC-0-PLAN.md in this folder (banked with QC-0). Grading:
+teacher-forcing rank + logit gap on RAW prompts, compressed vs
+its own uncompressed source, CPU-vs-CPU; near-tie band (rank <=2,
+sub-logit gap) = faithful; size-vs-quality per tier, honest where
+a tier hurts. Slices: QC-1 GGUF writer core - QC-2 Q8_0
+quantizer + round-trip - QC-3 whole-model Q8_0 + grade
+(stories260K first, then gemma-4-E2B) - QC-4 llama.cpp
+cross-check - QC-5 Q4_K_M tier - QC-6 27B Q8_0 to Q4_K_M
+(~15.2 GB predicted) + registry admission + grade - QC-7
+QC_RESULTS.md + residency note for Q35-7. First targets: Q8_0
+(the exact-inverse tier; the 27B's native format), then Q4_K_M
+(the workhorse). Named bug from QC-0 recon (next work, owed
+before any Q8_1 reliance): Q8_1 block size — loader prices
+36 B/block, compute.mojo walks 40 B blocks.
+
+## Compression workstream QC - completion states (QC-7, 2026-11-14)
+
+- QC-0 - recon + plan: DONE, banked (QC-0-PLAN.md).
+- QC-1 - GGUF writer core: DONE, banked (QC-1-NOTES.md).
+- QC-2 - Q8_0 quantizer + round-trip: DONE, banked (QC-2-NOTES.md).
+- QC-3a - stories260K F16 -> Q8_0 + grade: DONE, banked; verdict FAITHFUL (QC-3a-NOTES.md).
+- QC-3b - gemma-4-E2B Q4_K_M -> Q8_0 + grade: DONE, banked; verdict NOT FAITHFUL (one record), llama.cpp fallback grade (QC-3b-NOTES.md). Finding F-3b-1 FIXED by the F-3b-1 slice (gemma4 admits Q8_0).
+- QC-4 - llama.cpp cross-check: DONE, banked; verdict FAITHFUL, U-QC5 settled for file_type 7 (QC-4-NOTES.md).
+- QC-5 - Q4_K_M tier: DONE, banked; our stories product verdict DIVERGENT, llama.cpp product FAITHFUL in both engines, zero K tensors in the llama product (QC-5-NOTES.md).
+- QC-6 - 27B Q8_0 -> Q4_K_M: DONE, banked; verdict DIVERGENT by the strict gate (197/198 in band), product on the vault (QC-6-NOTES.md).
+- QC-7 - QC_RESULTS.md + RESIDENCY-NOTE.md: DONE with this slice; the workstream results record and the Q35-7 residency note are filed in this folder. Remaining named work is listed in QC_RESULTS.md section 5 (searched-fit packer, Q4_K_M resident-analogue contract, gemma4 CPU forward, file_type 15 reverse leg, F-2, _tensor_byte_size fall-through, imatrix absence).
+
+## Status update — 2026-11-14 (Q35-3b banked)
+
+- Q35-3b DONE: real-file oracle grade FAITHFUL (198/198
+  near-tie band vs llama.cpp CPU); the 27B generates
+  coherently on Aesir (greedy token-identical to the oracle).
+  U1 fix banked (tiled q/k broadcast). Grade context was
+  short (positions 0..~60) — serve-length re-witness is
+  Q35-4b's R1. Next: Q35-4b, then the Q8_1 fix (QC-0's named
+  bug), Q35-6a resume, QC-1; Q35-7 last.
+
+## Status update — 2026-11-14 (Q35-7 banked — CAMPAIGN COMPLETE)
+
+- Q35-7 DONE: stage-1 fixes (F-4b-2 stop tokens, F-4b-1 marker
+  trim, A-119 successor attestation, /health model_variant),
+  the gate swap (27B Q8_0-resident CPU on :18434, fence 48G/64G,
+  bench ALL PASS, gate left RUNNING), and the full-suite gate
+  (see QWEN35_RESULTS.md for the defended count). The Q35 line
+  is COMPLETE: QA-0, Q35-1, Q35-2, Q35-3a, Q35-3b, Q35-3r,
+  Q35-4a, Q35-4b, Q35-5, Q35-6 (+6b), Q35-7 all banked. The QC
+  compression line is COMPLETE separately (QC-0..QC-7,
+  QC_RESULTS.md). Named remaining work stands in
+  QWEN35_RESULTS.md: Q4_K_M resident analogue, searched-fit
+  packer, HIP decode speed + native HIP admission,
+  min_p/repeat_last_n, gemma4 CPU forward.
