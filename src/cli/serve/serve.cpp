@@ -26,6 +26,7 @@
 
 #include "gufo/ext/registry.hpp"
 #include "src/cli/arg_parser.hpp"
+#include "src/cli/model_env.hpp"
 #include "src/cli/provider_options.hpp"
 #include "src/cli/sampling_options.hpp"
 #include "src/cli/serve/asr_service.hpp"
@@ -1610,6 +1611,11 @@ int RunServe(std::span<const char* const> args) {
         : speculative_config.backend == server::TextSpeculativeBackend::kMtp
             ? mtp_model_path
             : dflash_model_path;
+    std::string model_error;
+    if (!ResolveEffectiveModelPath(&model, &model_error)) {
+      std::cerr << "Error: " << model_error << "\n";
+      return 2;
+    }
     if (model.empty()) {
       std::cerr << "Error: --model <PATH> is required\n";
       return 2;

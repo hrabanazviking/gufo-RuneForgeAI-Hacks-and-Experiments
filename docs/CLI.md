@@ -24,6 +24,24 @@ embeddings and decision models.
 For Nix command generation and deployment validation, see
 [Nix serving from extension metadata](model-extensions/serving.md).
 
+### Model selection
+
+`prompt`, `chat`, `bench`, and `serve llm` read two environment
+variables, in the style of Ollama's `OLLAMA_MODELS`:
+
+- `GUFO_MODELS_DIR` names a directory that holds model files. A
+  `--model` value that is a bare file name resolves inside this
+  directory. Absolute paths and values with a directory component are
+  used as given.
+- `GUFO_DEFAULT_MODEL` names the model a command uses when `--model`
+  is absent: a path, or a bare file name resolved through
+  `GUFO_MODELS_DIR`. An explicit `--model` always wins. When the
+  named file does not exist, the command fails with an error that
+  names the variable, its value, and the resolved path.
+
+`gufo diagnose` reports both variables and whether the default model
+file exists.
+
 ### LLM or text
 
 **Model identity**

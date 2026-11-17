@@ -13,6 +13,7 @@
 #include "gufo/ext/registry.hpp"
 #include "gufo/ext/text.hpp"
 #include "src/cli/arg_parser.hpp"
+#include "src/cli/model_env.hpp"
 #include "src/cli/provider_options.hpp"
 #include "src/cli/sampling_options.hpp"
 #include "src/cli/speculative_settings.hpp"
@@ -293,6 +294,14 @@ std::optional<PromptOptions> ParseTextOptions(std::span<const char* const> args,
       opt.preserve_thinking != "auto") {
     if (error_msg != nullptr) {
       *error_msg = "--preserve-thinking must be on, off, or auto";
+    }
+    return std::nullopt;
+  }
+
+  std::string model_error;
+  if (!ResolveEffectiveModelPath(&opt.model_path, &model_error)) {
+    if (error_msg != nullptr) {
+      *error_msg = model_error;
     }
     return std::nullopt;
   }

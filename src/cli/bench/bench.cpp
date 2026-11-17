@@ -14,6 +14,7 @@
 #include "gufo/ext/registry.hpp"
 #include "gufo/ext/text.hpp"
 #include "src/cli/arg_parser.hpp"
+#include "src/cli/model_env.hpp"
 #include "src/cli/provider_options.hpp"
 #include "src/cli/sampling_options.hpp"
 #include "src/cli/speculative_settings.hpp"
@@ -293,6 +294,14 @@ std::optional<BenchOptions> ParseBenchOptions(std::span<const char* const> args,
       *error_msg =
           "DFlash2 requires --min-draft-tokens 1; bound blocks with "
           "--draft-tokens";
+    return std::nullopt;
+  }
+
+  std::string model_error;
+  if (!ResolveEffectiveModelPath(&opt.model_path, &model_error)) {
+    if (error_msg != nullptr) {
+      *error_msg = model_error;
+    }
     return std::nullopt;
   }
 

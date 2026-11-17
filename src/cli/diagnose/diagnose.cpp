@@ -11,6 +11,7 @@
 
 #include "src/cli/arg_parser.hpp"
 #include "src/cli/extension_diagnostics.hpp"
+#include "src/cli/model_env.hpp"
 #include "src/core/diagnostics/allocation_benchmark.h"
 #include "src/core/diagnostics/artifact_validator.h"
 #include "src/core/diagnostics/bandwidth.h"
@@ -190,6 +191,43 @@ diagnostics::DiagnosticReport CollectDiagnostics(
     check.details["kernelRelease"] = inventory.toolchain.kernel_release;
     check.details["amdgpuStatus"] = inventory.toolchain.amdgpu_status;
     check.details["rocmVersion"] = inventory.toolchain.rocm_version;
+    report.AddCheck(std::move(check));
+  }
+
+  // 5. Model Environment Check
+  if (section == "all" || section == "inventory") {
+    diagnostics::DiagnosticCheck check;
+    check.name = "model_defaults";
+    const auto models_dir = ModelsDirFromEnv();
+    const auto default_model = DefaultModelFromEnv();
+    check.details["modelsDir"] =
+        models_dir.has_value() ? models_dir->string() : "(not set)";
+    check.details["defaultModel"] =
+        default_model.has_value() ? *default_model : "(not set)";
+    if (default_model.has_value()) {
+      const std::filesystem::path resolved =
+          ResolveModelReference(*default_model);
+      check.details["resolvedDefaultModel"] = resolved.string();
+      std::error_code ec;
+      const bool exists = std::filesystem::is_regular_file(resolved, ec);
+      check.details["defaultModelExists"] = exists ? "true" : "false";
+      if (exists) {
+        check.status = diagnostics::DiagnosticStatus::kPass;
+        check.message = "GUFO_DEFAULT_MODEL resolves to an existing model file";
+      } else {
+        check.status = diagnostics::DiagnosticStatus::kWarn;
+        check.message = "GUFO_DEFAULT_MODEL is set to '" + *default_model +
+                        "' but no model file exists at '" + resolved.string() +
+                        "'";
+        report.AddWarning(check.message);
+      }
+    } else {
+      check.status = diagnostics::DiagnosticStatus::kPass;
+      check.message = models_dir.has_value()
+                          ? "GUFO_MODELS_DIR is set and no default model "
+                            "is configured"
+                          : "No model environment defaults are set";
+    }
     report.AddCheck(std::move(check));
   }
 
