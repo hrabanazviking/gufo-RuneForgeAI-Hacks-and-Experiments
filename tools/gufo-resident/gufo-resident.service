@@ -1,0 +1,25 @@
+[Unit]
+Description=Gufo resident service (RuneForgeAI build) - Ollama-compatible, lazy-loading
+Documentation=file:///home/volmarr/src/gufo-dev/tools/gufo-resident/README.md
+After=network.target
+
+[Service]
+Type=simple
+User=volmarr
+ExecStart=/usr/bin/python3 /home/volmarr/.local/lib/gufo-resident/gufo_supervisor.py
+Environment=GUFO_HOST=127.0.0.1
+Environment=GUFO_PORT=11435
+Environment=GUFO_CHILD_PORT=18100
+Environment=GUFO_BIN=/home/volmarr/.nix-profile/bin/gufo
+Environment=GUFO_MODELS_DIR=/home/volmarr/models/gufo
+Environment=GUFO_DEFAULT_MODEL=gemma-4-26B-A4B-it-heretic.Q8_0.gguf
+Environment=GUFO_IDLE_UNLOAD=1200
+Environment=GUFO_KEEP_ALIVE=1800
+Environment=GUFO_SYSTEM_PROMPT_FILE=/home/volmarr/.config/gufo/system-prompt.txt
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
