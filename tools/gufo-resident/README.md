@@ -42,10 +42,10 @@ Ollama-shaped `{"error": "..."}` objects with friendly messages.
   oldest middle (non-system) messages are dropped, the pinned head
   and the recent tail are kept, and the trim is logged with counts.
   Nothing is ever silently middle-cut.
-- Prefix reuse is the Gufo server's own continuation cache; the
-  supervisor caps its RAM budget (`GUFO_CACHE_RAM_BYTES`, default
-  8 GiB) so the resident service stays a good citizen on a shared
-  machine.
+- Prefix reuse is the continuation cache of the Gufo server. By
+  ruling of Volmarr it carries NO RAM cap by default
+  (GUFO_CACHE_RAM_BYTES unset = unlimited); a cap exists only
+  when the operator sets that variable to a byte count.
 - Honest gap, recorded plainly: this Gufo build exposes no
   KV-cache-quantization or flash-attention switch on the serve
   command line, so there is no q8_0-KV equivalent to enable here.
@@ -91,7 +91,7 @@ proven without heating the machine.
 | `GUFO_LOAD_TIMEOUT_S` | `180` | child health deadline at load |
 | `GUFO_MAX_REQUEST_BYTES` | `33554432` | friendly-413 limit |
 | `GUFO_MAX_PROMPT_TOKENS` | `131072` | trim budget (estimated tokens) |
-| `GUFO_CACHE_RAM_BYTES` | `8589934592` | child continuation-cache RAM cap |
+| `GUFO_CACHE_RAM_BYTES` | *(unset = no cap)* | child continuation-cache RAM cap; a limit exists only when set |
 | `GUFO_MAX_CONCURRENT` | `4` | parallel generations when healthy |
 | `GUFO_SYSTEM_PROMPT` / `GUFO_SYSTEM_PROMPT_FILE` | — | pinned character prompt |
 | `GUFO_LOG_FILE` | — | optional rotating log file (5 MB × 3); default is stderr/journal |

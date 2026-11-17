@@ -164,3 +164,24 @@ and the discipline below. Full operator documentation:
   in the campaign report to Volmarr of that date.
 - Fork state is the ground truth: `git ls-remote` for
   `yrsa/default-model-setting` and `yrsa/our-gufo`.
+
+## Addendum 2026-11-17 - no KV limits except by setting (order of Volmarr)
+
+- Supervisor: GUFO_CACHE_RAM_BYTES now defaults to UNLIMITED.
+  Unset, empty or off passes --cache-ram-bytes off to the engine
+  child; a byte count is passed exactly as before. Garbage values
+  log a warning and fall back to no cap. Verified live on
+  purpleraider: child args show off when unset and the byte count
+  when set; the resident service was re-verified end to end
+  after restart (resting, load, keep_alive 0 unload, malformed
+  request manners).
+- This cap governs continuation and prefix checkpoint RAM, not
+  the GPU KV cache (already governed by the session --context
+  setting). No other hard KV ceiling exists in the supervisor
+  or the engine.
+- KV-cache quantization is PARKED pending the decision of
+  Volmarr: recon found the cache is bf16-typed end to end in
+  the separate gemma4-gufo-extension repo (three attention
+  paths incl. WMMA matrix-core prefill reading the cache
+  directly; derived-K global layers) - true q8_0 KV is an
+  attention-core kernel campaign against the extension.

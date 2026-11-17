@@ -97,6 +97,21 @@ def env_float(name, default):
         return default
 
 
+# GUFO_CACHE_RAM_BYTES, the Ollama way: unset, empty or off means
+# NO cap (None). A limit exists only when set to a byte count.
+# Garbage logs a warning and falls back to no cap; never a crash.
+def env_cache_ram_bytes():
+    raw = os.environ.get('GUFO_CACHE_RAM_BYTES', '').strip()
+    if raw == '' or raw.lower() in ('off', 'unlimited', 'none'):
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        log.warning('GUFO_CACHE_RAM_BYTES=%r is not a byte count; treating it as off (no cap)', raw)
+        return None
+    return value if value >= 0 else None
+
+
 class Config:
     def __init__(self):
         self.host = env_str("GUFO_HOST", "127.0.0.1")
@@ -112,7 +127,7 @@ class Config:
         self.load_timeout_s = env_float("GUFO_LOAD_TIMEOUT_S", 180.0)
         self.max_request_bytes = env_int("GUFO_MAX_REQUEST_BYTES", 32 * 1024 * 1024)
         self.max_prompt_tokens = env_int("GUFO_MAX_PROMPT_TOKENS", 131072)
-        self.cache_ram_bytes = env_int("GUFO_CACHE_RAM_BYTES", 8 * 1024 * 1024 * 1024)
+        self.cache_ram_bytes = env_cache_ram_bytes()  # None = no cap
         self.max_concurrent = env_int("GUFO_MAX_CONCURRENT", 4)
         self.throttled_max_tokens = env_int("GUFO_THROTTLED_MAX_TOKENS", 1024)
         self.temp_throttle_c = env_float("GUFO_TEMP_THROTTLE_C", 83.0)
@@ -446,7 +461,7 @@ class ResidentState:
                "--host", CFG.child_host, "--port", str(CFG.child_port),
                "--model", path,
                "--served-model-name", base,
-               "--cache-ram-bytes", str(CFG.cache_ram_bytes)]
+               "--cache-ram-bytes", "off" if CFG.cache_ram_bytes is None else str(CFG.cache_ram_bytes)]
         if CFG.trace_file:
             cmd += ["--trace", CFG.trace_file]
         env = dict(os.environ)
