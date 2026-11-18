@@ -22,6 +22,10 @@ Lifecycle (Ollama-mannered):
     keep_alive: -1 pins the model until an explicit unload.
   - After unload the supervisor keeps answering meta calls (tags, ps,
     version, show, models) without loading anything.
+  - KV cache format: GUFO_KV_CACHE_TYPE (f16 default; q8_0 a proven
+    opt-in, never the default) is resolved and validated by the
+    supervisor, passed explicitly to the engine child, and reported
+    as kv_cache_type on /api/version, /api/ps and /api/tags.
 
 Character prompt and context discipline (from our Ollama Memory Forge
 record):
@@ -112,6 +116,22 @@ def env_cache_ram_bytes():
     return value if value >= 0 else None
 
 
+# GUFO_KV_CACHE_TYPE, the Ollama way (Decision 3, KV-14): unset or
+# empty means f16 -- production KV on this machine is non-compressed
+# and f16 is the default. q8_0 is a proven opt-in only, never the
+# default. An invalid value is a clear named error at startup,
+# never a silent fallback to a different format.
+def env_kv_cache_type():
+    raw = os.environ.get('GUFO_KV_CACHE_TYPE', '').strip()
+    if raw == '':
+        return 'f16'
+    if raw in ('f16', 'q8_0'):
+        return raw
+    raise ValueError(
+        "GUFO_KV_CACHE_TYPE: unknown KV cache type %r; use f16 or q8_0"
+        % raw)
+
+
 class Config:
     def __init__(self):
         self.host = env_str("GUFO_HOST", "127.0.0.1")
@@ -128,6 +148,7 @@ class Config:
         self.max_request_bytes = env_int("GUFO_MAX_REQUEST_BYTES", 32 * 1024 * 1024)
         self.max_prompt_tokens = env_int("GUFO_MAX_PROMPT_TOKENS", 131072)
         self.cache_ram_bytes = env_cache_ram_bytes()  # None = no cap
+        self.kv_cache_type = env_kv_cache_type()  # f16 default (Decision 3)
         self.max_concurrent = env_int("GUFO_MAX_CONCURRENT", 4)
         self.throttled_max_tokens = env_int("GUFO_THROTTLED_MAX_TOKENS", 1024)
         self.temp_throttle_c = env_float("GUFO_TEMP_THROTTLE_C", 83.0)
@@ -465,6 +486,10 @@ class ResidentState:
         if CFG.trace_file:
             cmd += ["--trace", CFG.trace_file]
         env = dict(os.environ)
+        # KV-14: the KV cache format is passed to the engine child
+        # explicitly (the resolved, validated value), not by ambient
+        # inheritance, so the child always runs the reported format.
+        env['GUFO_KV_CACHE_TYPE'] = CFG.kv_cache_type
         try:
             self.child_log_fh = open("/tmp/gufo-resident-child.log", "ab", buffering=0)
             proc = subprocess.Popen(cmd, stdout=self.child_log_fh,
@@ -572,6 +597,7 @@ class ResidentState:
                 "details": {"format": "gguf", "family": family_of(base),
                             "families": [family_of(base)], "parameter_size": "",
                             "quantization_level": quant_of(base)},
+                "kv_cache_type": CFG.kv_cache_type,
                 "expires_at": expires,
                 "size_vram": size,
             }
@@ -777,7 +803,8 @@ class Handler(BaseHTTPRequestHandler):
             if method == "GET" and path == "/":
                 return self._send_text(200, "Gufo is running")
             if method == "GET" and path == "/api/version":
-                return self._send_json(200, {"version": STATE.gufo_version})
+                return self._send_json(200, {"version": STATE.gufo_version,
+                                             "kv_cache_type": CFG.kv_cache_type})
             if method == "GET" and path == "/api/tags":
                 return self._tags()
             if method == "GET" and path == "/api/ps":
@@ -822,6 +849,7 @@ class Handler(BaseHTTPRequestHandler):
                 "details": {"format": "gguf", "family": family_of(base),
                             "families": [family_of(base)], "parameter_size": "",
                             "quantization_level": quant_of(base)},
+                "kv_cache_type": CFG.kv_cache_type,
             })
         return self._send_json(200, {"models": models})
 
@@ -1356,6 +1384,8 @@ def main():
              CFG.default_model or "(none)")
     log.info("lifecycle: idle unload %.0fs, residency ceiling %.0fs, child port %d",
              CFG.idle_unload_s, CFG.keep_alive_ceiling_s, CFG.child_port)
+    log.info("kv cache type: %s (from GUFO_KV_CACHE_TYPE; f16 is the default)",
+             CFG.kv_cache_type)
     StrainWatcher(STATE).start()
     Reaper(STATE).start()
     server = ThreadingHTTPServer((CFG.host, CFG.port), Handler)

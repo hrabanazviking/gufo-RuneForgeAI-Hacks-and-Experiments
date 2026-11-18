@@ -185,3 +185,27 @@ and the discipline below. Full operator documentation:
   paths incl. WMMA matrix-core prefill reading the cache
   directly; derived-K global layers) - true q8_0 KV is an
   attention-core kernel campaign against the extension.
+
+## Addendum 2026-11-18 - KV-14: GUFO_KV_CACHE_TYPE through the resident supervisor
+
+- Supervisor resolves GUFO_KV_CACHE_TYPE (env_kv_cache_type):
+  unset/empty = f16 (Decision 3: production KV is non-compressed;
+  f16 is the default), f16|q8_0 accepted, anything else raises a
+  clear named ValueError at startup -- never a silent fallback.
+- _start_child sets GUFO_KV_CACHE_TYPE explicitly in the engine
+  child env from the resolved config, not by ambient inheritance.
+- Meta surface reports kv_cache_type: /api/version, /api/ps
+  (loaded entry), /api/tags (per model).
+- Verified live on purpleraider 2026-11-18 with the KV-14
+  full-stack build (extension HEAD 2b61bc2, nix store
+  lnb7f2iv...-gufo-0-unstable-4938016): resting meta reported
+  f16; first call loaded the model and answered Paris;
+  a systemd drop-in setting GUFO_KV_CACHE_TYPE=q8_0 plus restart
+  reported q8_0 on all meta surfaces and a call answered Paris;
+  drop-in removed, restart, f16 restored, service resting.
+  Bad value proven at supervisor start: ValueError naming
+  'bogus' (GUFO_KV_CACHE_TYPE: unknown KV cache type).
+- Installed: supervisor copied to ~/.local/lib/gufo-resident/
+  (byte-identical to the repo file); nix profile now carries
+  the KV-14 build; gufo-resident.service (system unit) was
+  restarted with sudo systemctl. Ollama :11434 untouched.
