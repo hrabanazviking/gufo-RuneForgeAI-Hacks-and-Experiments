@@ -547,17 +547,17 @@ std::unique_ptr<QwenChatTemplate> QwenChatTemplate::CreateFromGguf(
     }
     return CreateDefault();
   }
-  const Profile profile = IsQwen38ReasoningTemplate(*template_str)
-                              ? Profile::kQwen38Reasoning
-                              : Profile::kLegacyChatMl;
-  if (IsQwen38Artifact(reader) && profile != Profile::kQwen38Reasoning) {
-    if (error_msg != nullptr) {
-      *error_msg =
-          "Qwen3.8 GGUF chat template SHA-256 is not a recognized pinned "
-          "version: " +
-          TemplateSha256(*template_str);
-    }
-    return nullptr;
+  Profile profile = IsQwen38ReasoningTemplate(*template_str)
+                        ? Profile::kQwen38Reasoning
+                        : Profile::kLegacyChatMl;
+  if (profile != Profile::kQwen38Reasoning && IsQwen38Artifact(reader)) {
+    // House rule (Volmarr, 2026-11-21): the pinned-template allowlist is
+    // disabled. A Qwen3.8 artifact whose embedded template matches neither
+    // pinned revision (e.g. heretic builds with edited templates) is
+    // accepted instead of refused: the artifact family picks the renderer,
+    // so it renders with the Qwen3.8 reasoning profile, and the template's
+    // fingerprint no longer vetoes the load.
+    profile = Profile::kQwen38Reasoning;
   }
   return std::unique_ptr<QwenChatTemplate>(new QwenChatTemplate(
       std::string(*template_str), TemplateSha256(*template_str), profile));

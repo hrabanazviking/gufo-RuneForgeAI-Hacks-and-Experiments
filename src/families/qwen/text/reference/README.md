@@ -19,8 +19,10 @@ effort instruction and closes the generation prompt's thinking block.
 - Recognized Unsloth Qwen3.8 GGUF template SHA-256:
   `12827f24b742ea4e80cdc12dbcf9622227056b9f797252a3149263d4f9aaadce`
 
-`chat_template.jinja` is reference data only. Gufo validates recognized
-artifact hashes and executes the bounded C++ implementation.
+`chat_template.jinja` is reference data only. Gufo executes the bounded
+C++ implementation. House rule (2026-11-21): the template-hash allowlist
+no longer refuses unrecognized artifact templates - a Qwen3.8 artifact
+with an edited template renders with the Qwen3.8 reasoning profile.
 
 Full rendered-byte goldens cover tools before system instructions, the Unsloth
 artifact's leading developer-message extension, tool-loop reasoning retention,

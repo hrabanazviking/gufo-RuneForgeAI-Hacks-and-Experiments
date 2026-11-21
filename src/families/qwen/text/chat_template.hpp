@@ -159,8 +159,10 @@ public:
   [[nodiscard]] static std::unique_ptr<QwenChatTemplate> CreateFromGguf(
       const core::GgufReader& reader, std::string* error_msg = nullptr);
 
-  /// Validates that a Qwen3.8 artifact carries a recognized, pinned chat
-  /// template. Other Qwen model revisions retain their legacy formatter.
+  /// Validates that a Qwen GGUF's chat template can be loaded. Qwen3.8
+  /// artifacts render with the Qwen3.8 reasoning profile; the pinned
+  /// template allowlist is disabled (house rule, 2026-11-21), so an
+  /// unrecognized template revision no longer refuses the load.
   [[nodiscard]] static bool ValidateGgufTemplate(
       const core::GgufReader& reader, std::string* error_msg = nullptr);
 
